@@ -3,8 +3,8 @@ galaxy_info:
   role_name: disk
   author: Jhonny Gomez (JhonnyGO) - <soporte@Jhoncytech.com>
   description: >
-    Rol Ansible para particionar, formatear y montar discos (nvme/sdX),
-    con migración opcional de datos y generación de fstab. Probado en Ubuntu.
+    Idempotent role to partition, format and mount block devices on Linux.
+    Supports GPT/MSDOS labels, udev settle, safe /var/log migration and fstab management.
   license: MIT
   min_ansible_version: "2.13"
 

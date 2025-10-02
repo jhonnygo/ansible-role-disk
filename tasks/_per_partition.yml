@@ -1,4 +1,4 @@
-- name: Formatear partición si hace falta
+- name: Format partition if needed
   ansible.builtin.filesystem:
     fstype: "{{ p.fs | default(disk_fs_default) }}"
     dev: "{{ d.device }}{{ 'p' if (d.device is search('nvme|mmcblk')) else '' }}{{ p.number }}"
@@ -6,7 +6,7 @@
   when: not ansible_check_mode
   tags: [disk, disk:mkfs]
 
-- name: Asegurar punto de montaje
+- name: Ensure mount point
   ansible.builtin.file:
     path: "{{ p.mount.path }}"
     state: directory
@@ -15,17 +15,17 @@
     group: "{{ p.mount.create_group | default('root') }}"
   tags: [disk, disk:mount]
 
-- name: Determinar si hay migración previa
+- name: Determine if migration is requested
   ansible.builtin.set_fact:
     _migrate_from: "{{ (p.mount.migrate_from | default('')) or '' }}"
   tags: [disk, disk:migrate]
 
-- name: Recoger lista de paquetes instalados
+- name: Gather list of installed packages
   ansible.builtin.package_facts:
     manager: auto
   tags: [disk, disk:migrate]
 
-- name: Parar servicios (hint) antes de migrar
+- name: Stop services (hint) before migrating
   ansible.builtin.systemd:
     name: "{{ item }}"
     state: stopped
@@ -38,7 +38,7 @@
   failed_when: false
   tags: [disk, disk:migrate]
 
-- name: Crear staging temporal
+- name: Create temporary staging
   ansible.builtin.tempfile:
     state: directory
     suffix: _disk_staging
@@ -46,7 +46,7 @@
   when: _migrate_from | length > 0 and not ansible_check_mode
   tags: [disk, disk:migrate]
 
-- name: Montar temporalmente la partición en staging
+- name: Temporarily mount the partition to staging
   ansible.posix.mount:
     path: "{{ _staging.path }}"
     src: "{{ d.device }}{{ 'p' if (d.device is search('nvme|mmcblk')) else '' }}{{ p.number }}"
@@ -56,13 +56,13 @@
   when: _migrate_from | length > 0 and not ansible_check_mode
   tags: [disk, disk:migrate]
 
-- name: Copiar datos previos → staging (rsync)
+- name: Copy previous data → staging (rsync)
   ansible.builtin.command: "rsync -aXS --numeric-ids {{ _migrate_from }}/ {{ _staging.path }}/"
   changed_when: true
   when: _migrate_from | length > 0 and not ansible_check_mode
   tags: [disk, disk:migrate]
 
-- name: Desmontar staging y limpiar
+- name: Unmount staging and clean up
   block:
     - ansible.posix.mount:
         path: "{{ _staging.path }}"
@@ -73,7 +73,7 @@
   when: _migrate_from | length > 0 and not ansible_check_mode
   tags: [disk, disk:migrate]
 
-- name: Montaje definitivo (+ fstab)
+- name: Final mount (+ fstab)
   ansible.posix.mount:
     path: "{{ p.mount.path }}"
     src: "{{ d.device }}{{ 'p' if (d.device is search('nvme|mmcblk')) else '' }}{{ p.number }}"
@@ -83,7 +83,7 @@
   when: not ansible_check_mode
   tags: [disk, disk:mount]
 
-- name: Arrancar servicios (hint) tras migrar
+- name: Start services (hint) after migration
   ansible.builtin.systemd:
     name: "{{ item }}"
     state: started
@@ -97,7 +97,7 @@
   failed_when: false
   tags: [disk, disk:migrate]
 
-- name: Quitar lost+found
+- name: Remove lost+found
   ansible.builtin.file:
     path: "{{ p.mount.path }}/lost+found"
     state: absent

@@ -1,11 +1,11 @@
-- name: Paquetes base para gestionar particiones/FS
+- name: Base packages to manage partitions/FS
   package:
     name: [parted, e2fsprogs, rsync]
     state: present
   when: ansible_os_family in ["Debian", "RedHat", "Suse"]
   tags: [disk, disk:packages]
 
-- name: Verificar que disk_devices está definido
+- name: Verify that disk_devices is defined
   ansible.builtin.assert:
     that:
       - disk_devices is defined
@@ -15,7 +15,7 @@
   tags: [disk, disk:asserts]
 
 # Include _per_device.yml
-- name: Preparar cada dispositivo
+- name: Prepare each device
   include_tasks: _per_device.yml
   loop: "{{ disk_devices }}"
   loop_control:

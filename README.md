@@ -3,46 +3,46 @@
 [![Tests: molecule](https://img.shields.io/badge/tests-molecule-blue)](#testing)
 [![License: MIT](https://img.shields.io/badge/license-MIT-informational)](LICENSE)
 
-Rol de Ansible para **preparar y montar discos Linux** de forma segura e idempotente:
-- Detecta etiqueta de particiones (`gpt` o `dos/msdos`) y la crea si hace falta.
-- Crea particiones con `community.general.parted` usando rangos (`0%`, `25%`, `GiB`, etc.).
-- Formatea particiones con el FS indicado (por defecto `ext4`).  
-- Monta y **persiste** en `/etc/fstab` con `ansible.posix.mount`.
-- Incluye **migración opcional** de datos desde una ruta existente (p. ej. `/var/log`) con `rsync`.
-- Hooks para **parar/arrancar servicios** durante migraciones (journald, rsyslog, …).
-- Soporta discos `sdX` y `nvmeXnY` (manejo automático del sufijo `p` para NVMe/mmcblk).
+Ansible role to **safely and idempotently prepare and mount Linux disks**:
+- Detects partition label (`gpt` or `dos/msdos`) and creates it if needed.
+- Creates partitions with `community.general.parted` using ranges (`0%`, `25%`, `GiB`, etc.).
+- Formats partitions with the specified FS (default `ext4`).  
+- Mounts and **persists** in `/etc/fstab` with `ansible.posix.mount`.
+- Includes **optional data migration** from an existing path (e.g., `/var/log`) with `rsync`.
+- Hooks to **stop/start services** during migrations (journald, rsyslog, …).
+- Supports `sdX` and `nvmeXnY` disks (automatic handling of the `p` suffix for NVMe/mmcblk).
 
 ---
 
-## Índice
-- [Compatibilidad y requisitos](#compatibilidad-y-requisitos)
-- [Instalación](#instalación)
+## Table of Contents
+- [Compatibility & Requirements](#compatibility--requirements)
+- [Installation](#installation)
 - [Variables](#variables)
-  - [Estructura de `disk_devices`](#estructura-de-disk_devices)
-  - [Hints de servicios por ruta](#hints-de-servicios-por-ruta)
-  - [Variables de control y defaults](#variables-de-control-y-defaults)
-- [Ejemplos de uso](#ejemplos-de-uso)
-  - [Layout DB (4 particiones)](#layout-db-4-particiones)
-  - [Layout Web (2 particiones + migración /var/log)](#layout-web-2-particiones--migración-varlog)
+  - [Structure of `disk_devices`](#structure-of-disk_devices)
+  - [Service hints by path](#service-hints-by-path)
+  - [Control variables & defaults](#control-variables--defaults)
+- [Usage Examples](#usage-examples)
+  - [DB Layout (4 partitions)](#db-layout-4-partitions)
+  - [Web Layout (2 partitions + /var/log migration)](#web-layout-2-partitions--varlog-migration)
 - [Tags](#tags)
-- [Idempotencia y seguridad](#idempotencia-y-seguridad)
-- [Solución de problemas](#solución-de-problemas)
+- [Idempotence & Safety](#idempotence--safety)
+- [Troubleshooting](#troubleshooting)
 - [Testing](#testing)
-- [Licencia y autoría](#licencia-y-autoría)
+- [License & Author](#license--author)
 
 ---
 
-## Compatibilidad y requisitos
+## Compatibility & Requirements
 
-**Sistemas**: Debian/Ubuntu (y derivados).  
+**Systems**: Debian/Ubuntu (and derivatives).  
 **Ansible Collections**:  
 - `ansible.posix`
 - `community.general`
 
-**Paquetes en destino** (se instalan automáticamente si la familia OS es compatible):  
-`parted`, `e2fsprogs`, `rsync` (este último sólo si hay migraciones).
+**Target packages** (installed automatically if OS family is supported):  
+`parted`, `e2fsprogs`, `rsync` (the latter only if there are migrations).
 
-Instala las colecciones con:
+Install the collections with:
 
 ```yaml
 # requirements.yml
@@ -57,20 +57,20 @@ ansible-galaxy collection install -r requirements.yml
 
 ---
 
-## Instalación
+## Installation
 
-### A) Usando Git directamente (roles/requirements.yml)
+### A) Using Git directly (roles/requirements.yml)
 ```yaml
 roles:
   - name: disk
-    src: https://github.com/jhonnygo/ansible-rol-disk.git
-    version: main
+    src: https://github.com/jhonnygo/ansible-role-disk.git
+    version: latest
 ```
 ```bash
 ansible-galaxy role install -r roles/requirements.yml
 ```
 
-### B) Ansible Galaxy (si lo publicas)
+### B) Ansible Galaxy (if you publish it)
 ```bash
 ansible-galaxy role install jhonnygo.disk
 ```
@@ -79,36 +79,36 @@ ansible-galaxy role install jhonnygo.disk
 
 ## Variables
 
-### Estructura de `disk_devices`
+### Structure of `disk_devices`
 
-Define cada disco y sus particiones. El rol recorrerá esta lista y aplicará el layout de forma idempotente.
+Define each disk and its partitions. The role will iterate over this list and apply the layout idempotently.
 
 ```yaml
 disk_devices:
-  - device: /dev/nvme1n1        # Disco a preparar
-    label: gpt                  # (opcional) gpt | dos (msdos). Default: disk_label_default
+  - device: /dev/nvme1n1        # Disk to prepare
+    label: gpt                  # (optional) gpt | dos (msdos). Default: disk_label_default
     parts:
-      - number: 1               # Número de partición
-        start: "0%"             # Inicio (porcentaje o unidad: "1MiB", "10GiB", …)
-        end:   "25%"            # Fin
-        fs: ext4                # (opcional) Filesystem. Default: disk_fs_default
-        mkfs_opts: ""           # (opcional) Flags para mkfs (p. ej. "-F")
+      - number: 1               # Partition number
+        start: "0%"             # Start (percentage or unit: "1MiB", "10GiB", …)
+        end:   "25%"            # End
+        fs: ext4                # (optional) Filesystem. Default: disk_fs_default
+        mkfs_opts: ""           # (optional) mkfs flags (e.g., "-F")
         mount:
-          path: /var/lib/mysql  # Punto de montaje
-          opts: defaults        # Opciones fstab
-          create_mode: "0755"   # Si crea el dir
+          path: /var/lib/mysql  # Mount point
+          opts: defaults        # fstab options
+          create_mode: "0755"   # If the dir is created
           create_owner: root
           create_group: root
-          migrate_from: ""      # Ruta a migrar si existe (ej: "/var/log")
+          migrate_from: ""      # Path to migrate if present (e.g., "/var/log")
 ```
 
-> **Notas**  
-> - El rol calcula automáticamente el **sufijo de partición** (`p`) para `nvme/mmcblk` y lo omite para `sdX` (ej: `/dev/nvme1n1p1` vs `/dev/sda1`).  
-> - Tras particionar, el rol ejecuta `partprobe` y `udevadm settle` para forzar al kernel/udev a ver las nuevas particiones antes de continuar.
+> **Notes**  
+> - The role automatically computes the **partition suffix** (`p`) for `nvme/mmcblk` and omits it for `sdX` (e.g., `/dev/nvme1n1p1` vs `/dev/sda1`).  
+> - After partitioning, the role runs `partprobe` and `udevadm settle` to force the kernel/udev to see the new partitions before continuing.
 
-### Hints de servicios por ruta
+### Service hints by path
 
-Durante una migración (cuando `migrate_from` está presente), el rol puede parar/arrancar servicios asociados a esa ruta:
+During a migration (when `migrate_from` is set), the role can stop/start services associated with that path:
 
 ```yaml
 disk_service_hints:
@@ -117,24 +117,24 @@ disk_service_hints:
     start: [systemd-journald, rsyslog]
 ```
 
-Puedes ampliar/overridear esta estructura en `group_vars/host_vars` para otras rutas (por ejemplo rutas de bases de datos).
+You can extend/override this structure in `group_vars/host_vars` for other paths (for example, database paths).
 
-### Variables de control y defaults
+### Control variables & defaults
 
 ```yaml
 # defaults/main.yml
-disk_devices: []               # Lista de discos a preparar
-disk_label_default: gpt        # Label por defecto si no se define d.label
-disk_fs_default: ext4          # FS por defecto si no se define p.fs
-disk_remove_lostfound: true    # Eliminar lost+found tras el montaje (estético)
-disk_debug: false              # Habilitar mensajes debug (lsblk PTTYPE, etc)
+disk_devices: []               # List of disks to prepare
+disk_label_default: gpt        # Default label if d.label is not defined
+disk_fs_default: ext4          # Default FS if p.fs is not defined
+disk_remove_lostfound: true    # Remove lost+found after mount (cosmetic)
+disk_debug: false              # Enable debug messages (lsblk PTTYPE, etc.)
 ```
 
 ---
 
-## Ejemplos de uso
+## Usage Examples
 
-### Layout DB (4 particiones)
+### DB Layout (4 partitions)
 
 ```yaml
 - hosts: role_db
@@ -152,7 +152,7 @@ disk_debug: false              # Habilitar mensajes debug (lsblk PTTYPE, etc)
               - { number: 4, start: "75%", end: "100%",fs: ext4, mount: { path: /var/log,             opts: defaults, migrate_from: "/var/log" } }
 ```
 
-### Layout Web (2 particiones + migración `/var/log`)
+### Web Layout (2 partitions + `/var/log` migration)
 
 ```yaml
 - hosts: role_app
@@ -171,35 +171,35 @@ disk_debug: false              # Habilitar mensajes debug (lsblk PTTYPE, etc)
 
 ## Tags
 
-- `disk` — tag general del rol  
-- `disk:probe` — detecciones y avisos al kernel (`lsblk`, `partprobe`, `udevadm`)  
-- `disk:mklabel` — creación de etiqueta de disco  
-- `disk:parted` — creación de particiones  
-- `disk:wait` — esperas por aparición de nodos de partición  
-- `disk:partition` — formateo, montaje, fstab y migraciones  
-- `debug` — salida adicional si `disk_debug: true`  
+- `disk` — general role tag  
+- `disk:probe` — detections and kernel notifications (`lsblk`, `partprobe`, `udevadm`)  
+- `disk:mklabel` — disk label creation  
+- `disk:parted` — partition creation  
+- `disk:wait` — waits for partition nodes to appear  
+- `disk:partition` — formatting, mounting, fstab, and migrations  
+- `debug` — extra output if `disk_debug: true`  
 
-Ejecutar sólo particionado y montaje, por ejemplo:
+Run only partitioning and mounting, for example:
 ```bash
 ansible-playbook site.yml -l role_db -t "disk:parted,disk:partition"
 ```
 
 ---
 
-## Idempotencia y seguridad
+## Idempotence & Safety
 
-- No se forza `mkfs` si el FS ya existe en la partición (módulo `filesystem` es idempotente).  
-- El montaje se realiza con `state: mounted` y queda persistido en `/etc/fstab`.  
-- Si se define `migrate_from`, se usa `rsync -aXS --numeric-ids` contra un montaje temporal y se limpian recursos.  
-- Se usan `partprobe` y `udevadm settle` para sincronizar con el kernel/udev tras cambios de particionado.  
-- Los servicios definidos en `disk_service_hints` se paran antes de migrar y se arrancan al final.
+- `mkfs` is **not** forced if the FS already exists on the partition (the `filesystem` module is idempotent).  
+- Mounting uses `state: mounted` and is persisted in `/etc/fstab`.  
+- If `migrate_from` is set, it uses `rsync -aXS --numeric-ids` against a temporary mount and cleans up resources.  
+- `partprobe` and `udevadm settle` are used to synchronize with kernel/udev after partitioning changes.  
+- Services defined in `disk_service_hints` are stopped before migration and started at the end.
 
 ---
 
-## Solución de problemas
+## Troubleshooting
 
-**Se detecta `PTTYPE=dos` (msdos) pero yo quiero GPT**  
-Define `label: gpt` en el dispositivo o ajusta `disk_label_default: gpt`. El rol creará la etiqueta si difiere de la detectada:
+**`PTTYPE=dos` (msdos) is detected but I want GPT**  
+Set `label: gpt` on the device or adjust `disk_label_default: gpt`. The role will create the label if it differs from the detected one:
 
 ```yaml
 disk_devices:
@@ -208,23 +208,23 @@ disk_devices:
     parts: ...
 ```
 
-**Las particiones tardan en aparecer**  
-El rol ya ejecuta `partprobe` y `udevadm settle`, y espera a que exista cada nodo `/dev/...`. Si aún así tu plataforma necesita más tiempo, amplía el `timeout` global mediante `ansible.cfg` (SSH timeouts) o añade una tarea de espera adicional.
+**Partitions take a while to appear**  
+The role already runs `partprobe` and `udevadm settle`, and waits for each `/dev/...` node to exist. If your platform still needs more time, increase the global `timeout` via `ansible.cfg` (SSH timeouts) or add an extra wait task.
 
 **NVMe vs sdX**  
-El rol calcula automáticamente el sufijo `p` para NVMe/mmcblk (`/dev/nvme1n1p1`) y no lo usa en `sdX` (`/dev/sda1`).
+The role automatically computes the `p` suffix for NVMe/mmcblk (`/dev/nvme1n1p1`) and not for `sdX` (`/dev/sda1`).
 
 **`lost+found`**  
-Se elimina si `disk_remove_lostfound: true` (puramente estético, no funcional).
+It is removed if `disk_remove_lostfound: true` (purely cosmetic, not functional).
 
-**Modo check**  
-Las tareas destructivas se condicionan con `not ansible_check_mode` cuando corresponde; en `--check` verás la intención pero no se alterará el disco.
+**Check mode**  
+Destructive tasks are guarded with `not ansible_check_mode` when appropriate; under `--check` you’ll see the intent but the disk will not be altered.
 
 ---
 
 ## Testing
 
-Incluye esqueleto compatible con **Molecule** (añade tu escenario Docker/Podman/EC2).
+Includes a **Molecule**-compatible skeleton (add your Docker/Podman/EC2 scenario).
 
 ```bash
 pip install molecule molecule-plugins[docker] ansible-lint
@@ -233,35 +233,35 @@ molecule test
 
 ---
 
-## Licencia y autoría
+## License & Author
 
-**Licencia:** MIT  
-**Autor:** Tu Nombre — <suport@jhoncytech.com>  
+**License:** MIT  
+**Author:** Your Name — <suport@jhoncytech.com>  
 **GitHub:** https://github.com/jhonnygo/ansible-rol-disk.git
 
 
-## Matriz de pruebas / Entornos verificados
+## Test Matrix / Verified Environments
 
-> Este rol se valida de forma incremental. Aquí se listan los entornos probados con su estado.
-> Si un entorno no aparece, significa "pendiente de prueba".
+> This role is validated incrementally. Below are the tested environments with their status.  
+> If an environment is missing, it means “pending test.”
 
-| Entorno / Plataforma                       | SO / AMI / Imagen                  | Ansible | Resultado | Notas |
-|--------------------------------------------|------------------------------------|---------|-----------|-------|
-| **Local – Vagrant (VirtualBox)**           | Ubuntu 22.04 LTS                   | 2.15+   | ✅ OK     | Pruebas de particionado `nvme` y `sda` simulados. |
-| **Local – Docker**                          | ubuntu:22.04 (privileged)         | 2.15+   | ✅ OK     | Necesita `--privileged` para permitir `parted/udev`. |
-| **AWS EC2**                                 | Ubuntu 22.04 LTS (t3/t3a)         | 2.15+   | ✅ OK     | Discos `nvme1n1`; ver udev/partprobe en notas. |
-| **AWS EC2**                                 | Ubuntu 20.04 LTS                   | 2.15+   | 🟡 Pend.  |                                         |
-| **AWS EC2**                                 | Amazon Linux 2 / 2023              | 2.15+   | 🟡 Pend.  | Ajustar gestor de paquetes (yum/dnf). |
-| **GCP / Azure**                             | Ubuntu 22.04 LTS                   | 2.15+   | 🟡 Pend.  |                                         |
-| **Bare-metal / VMware / Proxmox**           | Debian 12                          | 2.15+   | 🟡 Pend.  |                                         |
-| **RHEL / Rocky / Alma**                     | 8.x / 9.x                          | 2.15+   | 🟡 Pend.  | Cambiar gestor de paquetes a `yum/dnf`. |
+| Environment / Platform                      | OS / AMI / Image                  | Ansible | Result | Notes |
+|---------------------------------------------|-----------------------------------|---------|--------|-------|
+| **Local – Vagrant (VirtualBox)**            | Ubuntu 22.04 LTS                  | 2.15+   | ✅ OK  | Simulated `nvme` and `sda` partitioning tests. |
+| **Local – Docker**                           | ubuntu:22.04 (privileged)         | 2.15+   | ✅ OK  | Requires `--privileged` to allow `parted/udev`. |
+| **AWS EC2**                                  | Ubuntu 22.04 LTS (t3/t3a)         | 2.15+   | ✅ OK  | `nvme1n1` disks; see udev/partprobe notes. |
+| **AWS EC2**                                  | Ubuntu 20.04 LTS                  | 2.15+   | 🟡 Pending |                                    |
+| **AWS EC2**                                  | Amazon Linux 2 / 2023             | 2.15+   | 🟡 Pending | Adjust package manager (yum/dnf). |
+| **GCP / Azure**                              | Ubuntu 22.04 LTS                  | 2.15+   | 🟡 Pending |                                    |
+| **Bare-metal / VMware / Proxmox**            | Debian 12                         | 2.15+   | 🟡 Pending |                                    |
+| **RHEL / Rocky / Alma**                      | 8.x / 9.x                         | 2.15+   | 🟡 Pending | Switch package manager to `yum/dnf`. |
 
-### Cómo reproducir las pruebas locales
+### How to reproduce local tests
 
 **Vagrant (VirtualBox)**
 ```bash
 vagrant init ubuntu/jammy64
-# En el Vagrantfile, añade un disco extra o usa un box que exponga /dev/sdb
+# In the Vagrantfile, add an extra disk or use a box that exposes /dev/sdb
 vagrant up
 ansible-playbook -i inventory vagrant_storage.yml -l default
 ```
@@ -269,13 +269,12 @@ ansible-playbook -i inventory vagrant_storage.yml -l default
 **Docker (privileged)**
 ```bash
 docker run --rm -it --privileged -v $(pwd):/work -w /work ubuntu:22.04 bash
-# dentro del contenedor:
+# inside the container:
 apt-get update && apt-get install -y ansible parted util-linux udev
 ansible-playbook -i inventory docker_storage.yml
 ```
 
-> **Tip:** Si el entorno usa NVMe (ej. EC2), los nodos de partición serán `/dev/nvme1n1p1`.
-> En SATA/virtio serán `/dev/sdb1`. El rol detecta ambos casos automáticamente.
+> **Tip:** If the environment uses NVMe (e.g., EC2), partition nodes will be `/dev/nvme1n1p1`.
+> On SATA/virtio they will be `/dev/sdb1`. The role detects both cases automatically.
 
 ---
-

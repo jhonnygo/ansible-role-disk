@@ -1,14 +1,14 @@
-# Este proyecto esta realizado con fines informativos.
-# Tiene como objetivo el aumento de productividad.
-# Recopilando y utilizando bibliotecas creadas para tal fin.
+# This project is provided for personal purposes.
+# Its goal is to increase productivity.
+# Collecting and using libraries created for that purpose.
 #
-# Copyright (c) 2025-present JHONCYTECH <soporte@jhoncytech.com>
+# Copyright (c) 2025–present JHONCYTECH <soporte@jhoncytech.com>
 #
-# @author Jhonny Gomez <jhonny@jhoncytech.com>
-
-# ---------------------------
+# @author Jhonny Gomez <jh0nny@jhoncytech.com>
+#
+# -------------------------
 # Ansible role / Python / Molecule / Editors
-# ---------------------------
+# -------------------------
 
 # Ansible
 *.retry

@@ -1,15 +1,15 @@
-# Lista de dispositivos a preparar en este host.
-# Cada item describe un disco y sus particiones/montajes.
+# List of devices to prepare on this host.
+# Each item describes a disk and its partitions/mounts.
 disk_devices: []
 
-# Servicios a parar/arrancar automáticamente en migraciones, por ruta.
-# Puedes sobreescribirlo en inventarios si quieres añadir DBs.
+# Services to stop/start automatically during migrations, by path.
+# You can override this in inventories if you want to add DBs.
 storage_service_hints:
   "/var/log":
     stop:  [systemd-journald]
     start: [systemd-journald]
 
-# ¿Eliminar lost+found tras el montaje? (meramente estético)
+# Remove lost+found after mounting? (purely cosmetic)
 disk_remove_lostfound: true
 
 disk_label_default: gpt
