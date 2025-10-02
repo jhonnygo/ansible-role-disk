@@ -1,0 +1,24 @@
+- name: Paquetes base para gestionar particiones/FS
+  package:
+    name: [parted, e2fsprogs, rsync]
+    state: present
+  when: ansible_os_family in ["Debian", "RedHat", "Suse"]
+  tags: [disk, disk:packages]
+
+- name: Verificar que disk_devices está definido
+  ansible.builtin.assert:
+    that:
+      - disk_devices is defined
+      - disk_devices | length > 0
+    fail_msg: "Debes definir disk_devices (listado de discos)."
+    success_msg: "disk_devices presente con {{ disk_devices | length }} disco(s)."
+  tags: [disk, disk:asserts]
+
+# Include _per_device.yml
+- name: Preparar cada dispositivo
+  include_tasks: _per_device.yml
+  loop: "{{ disk_devices }}"
+  loop_control:
+    loop_var: d
+    label: "{{ d.device | default('unknown') }}"
+  tags: [disk]

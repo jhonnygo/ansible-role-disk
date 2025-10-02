@@ -1,0 +1,19 @@
+# Lista de dispositivos a preparar en este host.
+# Cada item describe un disco y sus particiones/montajes.
+disk_devices: []
+
+# Servicios a parar/arrancar automáticamente en migraciones, por ruta.
+# Puedes sobreescribirlo en inventarios si quieres añadir DBs.
+storage_service_hints:
+  "/var/log":
+    stop:  [systemd-journald]
+    start: [systemd-journald]
+
+# ¿Eliminar lost+found tras el montaje? (meramente estético)
+disk_remove_lostfound: true
+
+disk_label_default: gpt
+disk_fs_default: ext4
+disk_mount_opts_default: defaults
+
+disk_debug: true
