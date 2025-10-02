@@ -15,8 +15,11 @@ Ansible role to **safely and idempotently prepare and mount Linux disks**:
 ---
 
 ## Table of Contents
+- [Repository Layout (How I run it)](#repository-layout-how-i-run-it)
 - [Compatibility & Requirements](#compatibility--requirements)
 - [Installation](#installation)
+  - [Example `collections/requirements.yml`](#example-collectionsrequirementsyml)
+- [Inventory & Useful Commands](#inventory--useful-commands)
 - [Variables](#variables)
   - [Structure of `disk_devices`](#structure-of-disk_devices)
   - [Service hints by path](#service-hints-by-path)
@@ -29,6 +32,64 @@ Ansible role to **safely and idempotently prepare and mount Linux disks**:
 - [Troubleshooting](#troubleshooting)
 - [Testing](#testing)
 - [License & Author](#license--author)
+- [Test Matrix / Verified Environments](#test-matrix--verified-environments)
+
+---
+
+## Repository Layout (How I run it)
+
+Below is the **project layout I currently use**. It shows where inventories, playbooks and this role live, so you can understand the folder references used in the command examples.
+
+```
+.
+├── ansible.cfg
+├── collections/
+│   ├── ansible_collections/
+│   └── requirements.yml
+├── inventories/
+│   ├── prod/
+│   │   ├── aws_ec2.yml
+│   │   └── group_vars/
+│   │       ├── all.yml
+│   │       ├── role_app.yml
+│   │       └── role_db.yml
+│   └── stage/
+│       ├── aws_ec2.yml
+│       └── group_vars/
+│           ├── all.yml
+│           ├── role_app.yml
+│           └── role_db.yml
+├── playbooks/
+│   ├── disk.yml
+│   ├── disk_format_simple.yml
+│   └── ping.yml
+└── roles/
+    └── jhonnygo.disk/
+        ├── CHANGELOG
+        ├── LICENSE
+        ├── README.md   # this file
+        ├── defaults/
+        │   └── main.yml
+        ├── files/
+        ├── filter_plugins/
+        ├── handlers/
+        ├── library/
+        ├── meta/
+        │   └── main.yml
+        ├── module_utils/
+        ├── tasks/
+        │   ├── _per_device.yml
+        │   ├── _per_partition.yml
+        │   └── main.yml
+        ├── templates/
+        └── tests/
+            ├── inventory
+            ├── molecule/
+            └── test.yml
+```
+
+> **Note**  
+> I use **dynamic inventory** with `aws_ec2.yml` inside `inventories/<env>/` and group variables under `group_vars/`. The role targets the groups `role_app` and `role_db` (see examples below).
 
 ---
 
@@ -45,35 +106,123 @@ Ansible role to **safely and idempotently prepare and mount Linux disks**:
 Install the collections with:
 
 ```yaml
-# requirements.yml
+# collections/requirements.yml
 collections:
   - name: ansible.posix
   - name: community.general
 ```
 
 ```bash
-ansible-galaxy collection install -r requirements.yml
+ansible-galaxy collection install -r collections/requirements.yml
 ```
 
 ---
 
 ## Installation
 
-### A) Using Git directly (roles/requirements.yml)
-```yaml
-roles:
-  - name: disk
-    src: https://github.com/jhonnygo/ansible-role-disk.git
-    version: latest
-```
+You can consume the role in three ways:
+
+### 1) Using Git directly (one-off)
+Install the role straight from the repository:
 ```bash
-ansible-galaxy role install -r roles/requirements.yml
+ansible-galaxy role install git+https://github.com/jhonnygo/ansible-role-disk.git
 ```
 
-### B) Ansible Galaxy (if you publish it)
+### 2) Using a unified *requirements.yml* (recommended)
+Keep a single **`collections/requirements.yml`** that includes **both collections and roles**. Then install each type with its corresponding command:
+
+```bash
+ansible-galaxy collection install -r collections/requirements.yml
+ansible-galaxy role       install -r collections/requirements.yml
+```
+
+### 3) Ansible Galaxy
 ```bash
 ansible-galaxy role install jhonnygo.disk
 ```
+
+### Example `collections/requirements.yml`
+
+This is the **exact format I use**, with collections and this role pinned to a version:
+
+```yaml
+---
+collections:
+  - name: amazon.aws
+  - name: ansible.posix
+  - name: community.general
+
+roles:
+  - name: jhonnygo.disk
+    version: "0.1.3"
+```
+
+> You can pin collection versions too (e.g., `name: community.general, version: "8.6.1"`).
+
+---
+
+## Inventory & Useful Commands
+
+My inventories are under `inventories/<env>/aws_ec2.yml`. The groups I use are:
+
+- `role_app` – application nodes
+- `role_db` – database nodes
+- Extra grouping by environment (e.g., `env_stage`) comes from inventory variables.
+
+### Inspect the dynamic inventory (graph)
+
+```bash
+ansible-inventory -i inventories/stage/aws_ec2.yml --graph
+```
+
+You should see a tree similar to:
+```
+@all:
+  |--@ungrouped:
+  |--@aws_ec2:
+  |  |--db-stage
+  |  |--app-stage
+  |--@env_stage:
+  |  |--db-stage
+  |  |--app-stage
+  |--@role_db:
+  |  |--db-stage
+  |--@role_app:
+     |--app-stage
+```
+
+### Run the role against a specific group
+
+- Dry run (no changes), limit to **app** servers and only the `disk` tag:
+```bash
+ansible-playbook -i inventories/stage/aws_ec2.yml playbooks/disk.yml \
+  -l role_app --tags disk --check
+```
+
+- Dry run for **both** app and db:
+```bash
+ansible-playbook -i inventories/stage/aws_ec2.yml playbooks/disk.yml \
+  -l role_app,role_db --tags disk --check
+```
+
+- See diffs during check:
+```bash
+ansible-playbook -i inventories/stage/aws_ec2.yml playbooks/disk.yml \
+  -l role_app --check --diff
+```
+
+- Real execution (no `--check`), app only:
+```bash
+ansible-playbook -i inventories/stage/aws_ec2.yml playbooks/disk.yml -l role_app
+```
+
+**Command flags explained**
+
+- `-i <path>`: inventory file (dynamic `aws_ec2.yml` in this repo layout).  
+- `-l <pattern>`: limit hosts to a group or list of groups (e.g., `role_app,role_db`).  
+- `--tags <tags>`: run only specific parts of the role (see [Tags](#tags)).  
+- `--check`: check mode; shows what *would* change.  
+- `--diff`: show file/line differences for templated resources when applicable.
 
 ---
 
@@ -181,7 +330,8 @@ disk_debug: false              # Enable debug messages (lsblk PTTYPE, etc.)
 
 Run only partitioning and mounting, for example:
 ```bash
-ansible-playbook site.yml -l role_db -t "disk:parted,disk:partition"
+ansible-playbook -i inventories/stage/aws_ec2.yml playbooks/disk.yml -l role_db \
+  -t "disk:parted,disk:partition"
 ```
 
 ---
@@ -233,13 +383,6 @@ molecule test
 
 ---
 
-## License & Author
-
-**License:** MIT  
-**Author:** Your Name — <suport@jhoncytech.com>  
-**GitHub:** https://github.com/jhonnygo/ansible-rol-disk.git
-
-
 ## Test Matrix / Verified Environments
 
 > This role is validated incrementally. Below are the tested environments with their status.  
@@ -278,3 +421,13 @@ ansible-playbook -i inventory docker_storage.yml
 > On SATA/virtio they will be `/dev/sdb1`. The role detects both cases automatically.
 
 ---
+
+<br/>
+
+<img src="img/happy-coding.jpg?raw=true" alt="Footer Logo" />
+
+## License & Author
+
+**License:** MIT  
+**Author:** Jhonny Alexander (JhonnyGO) — <support@jhoncytech.com>  
+**GitHub:** https://github.com/jhonnygo/ansible-rol-disk.git
