@@ -154,7 +154,7 @@ collections:
 
 roles:
   - name: jhonnygo.disk
-    version: "0.1.3"
+    version: "0.1.4"
 ```
 
 > You can pin collection versions too (e.g., `name: community.general, version: "8.6.1"`).
