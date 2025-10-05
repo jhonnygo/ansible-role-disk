@@ -2,7 +2,7 @@
 
 namespace: jhonnygo
 name: disk
-version: 0.1.4
+version: 0.1.5
 readme: README.md
 description: >
   Idempotent role to partition, format and mount block devices on Linux.
